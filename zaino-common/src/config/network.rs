@@ -13,6 +13,7 @@ pub const ZEBRAD_DEFAULT_ACTIVATION_HEIGHTS: ActivationHeights = ActivationHeigh
     nu5: Some(2),
     nu6: Some(2),
     nu6_1: Some(1000),
+    nu6_2: Some(2000),
     nu7: None,
 };
 
@@ -82,6 +83,10 @@ pub struct ActivationHeights {
     /// see <https://zips.z.cash/#nu6-1-candidate-zips> for info on NU6.1
     #[serde(rename = "NU6.1")]
     pub nu6_1: Option<u32>,
+    /// Activation height for `NU6.2` network upgrade.
+    /// NU6.2 (emergency hotfix for Orchard pool, activated 2026-06-03 at mainnet height 3,364,600).
+    #[serde(rename = "NU6.2", default)]
+    pub nu6_2: Option<u32>,
     /// Activation height for `NU7` network upgrade.
     #[serde(rename = "NU7")]
     pub nu7: Option<u32>,
@@ -99,6 +104,7 @@ impl Default for ActivationHeights {
             nu5: Some(2),
             nu6: Some(2),
             nu6_1: Some(2),
+            nu6_2: Some(2),
             nu7: None,
         }
     }
@@ -129,6 +135,7 @@ impl From<ConfiguredActivationHeights> for ActivationHeights {
             nu5,
             nu6,
             nu6_1,
+            nu6_2: None,
             nu7,
         }
     }
@@ -145,6 +152,7 @@ impl From<ActivationHeights> for ConfiguredActivationHeights {
             nu5,
             nu6,
             nu6_1,
+            nu6_2: _,
             nu7,
         }: ActivationHeights,
     ) -> Self {
@@ -229,6 +237,7 @@ impl From<zebra_chain::parameters::Network> for Network {
                         nu5: None,
                         nu6: None,
                         nu6_1: None,
+                        nu6_2: None,
                         nu7: None,
                     };
                     for (height, upgrade) in parameters.activation_heights().iter() {
