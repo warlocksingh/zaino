@@ -468,15 +468,20 @@ impl BlockchainSource for ValidatorConnector {
                             "could not fetch transaction data: non-raw response".to_string(),
                         ));
                     };
-                    let transaction: zebra_chain::transaction::Transaction =
-                        zebra_chain::transaction::Transaction::zcash_deserialize(
-                            std::io::Cursor::new(serialized_transaction.as_ref()),
-                        )
-                        .map_err(|e| {
-                            BlockchainSourceError::Unrecoverable(format!(
-                                "could not deserialize transaction data: {e}"
-                            ))
-                        })?;
+                    // HIMPOOL PATCH: return Ok(None) instead of error when a
+                    // transaction can't be deserialized (e.g. NU6.2 consensus
+                    // branch id vs older zebra-chain). Caller treats as missing.
+                    let transaction = match zebra_chain::transaction::Transaction::zcash_deserialize(
+                        std::io::Cursor::new(serialized_transaction.as_ref()),
+                    ) {
+                        Ok(tx) => tx,
+                        Err(e) => {
+                            tracing::warn!(
+                                "skipping mempool tx (state path): could not deserialize: {e}"
+                            );
+                            return Ok(None);
+                        }
+                    };
                     Ok(Some(transaction.into()))
                 } else {
                     Ok(None)
@@ -499,15 +504,20 @@ impl BlockchainSource for ValidatorConnector {
                             "could not fetch transaction data: non-raw response".to_string(),
                         ));
                     };
-                let transaction: zebra_chain::transaction::Transaction =
-                    zebra_chain::transaction::Transaction::zcash_deserialize(std::io::Cursor::new(
-                        serialized_transaction.as_ref(),
-                    ))
-                    .map_err(|e| {
-                        BlockchainSourceError::Unrecoverable(format!(
-                            "could not deserialize transaction data: {e}"
-                        ))
-                    })?;
+                // HIMPOOL PATCH: return Ok(None) instead of error when a
+                // transaction can't be deserialized (e.g. NU6.2 consensus
+                // branch id vs older zebra-chain). Caller treats as missing.
+                let transaction = match zebra_chain::transaction::Transaction::zcash_deserialize(
+                    std::io::Cursor::new(serialized_transaction.as_ref()),
+                ) {
+                    Ok(tx) => tx,
+                    Err(e) => {
+                        tracing::warn!(
+                            "skipping mempool tx (fetch path): could not deserialize: {e}"
+                        );
+                        return Ok(None);
+                    }
+                };
                 Ok(Some(transaction.into()))
             }
         }

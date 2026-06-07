@@ -246,17 +246,20 @@ impl<T: BlockchainSource> Mempool<T> {
         })?;
 
         for txid in txids {
-            let transaction = self
-                .fetcher
-                .get_transaction(txid.0.into())
-                .await?
-                .ok_or_else(|| {
-                    MempoolError::BlockchainSourceError(
-                        crate::chain_index::source::BlockchainSourceError::Unrecoverable(format!(
-                            "could not fetch mempool data: transaction not found for txid {txid}"
-                        )),
-                    )
-                })?;
+            // HIMPOOL PATCH: skip mempool transactions we cannot fetch or
+            // deserialize (e.g. NU6.2-signed txs against an older zebra-chain).
+            // The pool does not depend on full mempool indexing — silent skip
+            // keeps the chain indexer alive instead of taking Zallet down.
+            let transaction = match self.fetcher.get_transaction(txid.0.into()).await {
+                Ok(Some(tx)) => tx,
+                Ok(None) => continue,
+                Err(e) => {
+                    tracing::warn!(
+                        "skipping mempool tx {txid}: could not fetch/deserialize: {e}"
+                    );
+                    continue;
+                }
+            };
 
             transactions.push((
                 MempoolKey {
