@@ -179,7 +179,11 @@ pub struct GetBlockchainInfoResponse {
     #[serde(rename = "chainSupply")]
     chain_supply: ChainBalance,
 
-    /// Status of network upgrades
+    /// Status of network upgrades.
+    /// HIMPOOL PATCH: lenient deserialization — drop entries with unknown
+    /// NetworkUpgrade variants (e.g. `NU6.2` against an older zebra_rpc enum)
+    /// instead of failing the whole getblockchaininfo response.
+    #[serde(deserialize_with = "deserialize_upgrades_permissive")]
     pub upgrades: indexmap::IndexMap<
         zebra_rpc::methods::ConsensusBranchIdHex,
         zebra_rpc::methods::NetworkUpgradeInfo,
@@ -242,6 +246,42 @@ impl ResponseToError for GetNetworkSolPsResponse {
 
 fn default_header() -> Height {
     Height(0)
+}
+
+/// HIMPOOL PATCH: deserialize getblockchaininfo's `upgrades` map permissively.
+/// Drops entries whose value (NetworkUpgradeInfo) cannot be parsed by the pinned
+/// zebra_rpc version (e.g. NU6.2 against the older NetworkUpgrade enum), instead
+/// of failing the entire response.
+fn deserialize_upgrades_permissive<'de, D>(
+    deserializer: D,
+) -> Result<
+    indexmap::IndexMap<
+        zebra_rpc::methods::ConsensusBranchIdHex,
+        zebra_rpc::methods::NetworkUpgradeInfo,
+    >,
+    D::Error,
+>
+where
+    D: Deserializer<'de>,
+{
+    let raw: indexmap::IndexMap<String, serde_json::Value> =
+        Deserialize::deserialize(deserializer)?;
+    let mut out = indexmap::IndexMap::new();
+    for (k, v) in raw {
+        let key_json = serde_json::Value::String(k.clone());
+        let key: zebra_rpc::methods::ConsensusBranchIdHex =
+            match serde_json::from_value(key_json) {
+                Ok(k) => k,
+                Err(_) => continue,
+            };
+        let val: zebra_rpc::methods::NetworkUpgradeInfo =
+            match serde_json::from_value(v) {
+                Ok(v) => v,
+                Err(_) => continue,
+            };
+        out.insert(key, val);
+    }
+    Ok(out)
 }
 
 #[derive(Clone, Debug, PartialEq, serde::Deserialize, serde::Serialize)]
