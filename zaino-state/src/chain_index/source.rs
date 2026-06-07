@@ -149,10 +149,20 @@ impl BlockchainSource for ValidatorConnector {
                     .get_block(id.to_string(), Some(0))
                     .await
                 {
-                    Ok(GetBlockResponse::Raw(raw_block)) => Ok(Some(Arc::new(
-                        zebra_chain::block::Block::zcash_deserialize(raw_block.as_ref())
-                            .map_err(|e| BlockchainSourceError::Unrecoverable(e.to_string()))?,
-                    ))),
+                    // HIMPOOL PATCH: return Ok(None) instead of error when a
+                    // block can't be deserialized (e.g. NU6.2-signed txs against
+                    // an older zebra-chain). Caller treats as missing block.
+                    Ok(GetBlockResponse::Raw(raw_block)) => {
+                        match zebra_chain::block::Block::zcash_deserialize(raw_block.as_ref()) {
+                            Ok(block) => Ok(Some(Arc::new(block))),
+                            Err(e) => {
+                                tracing::warn!(
+                                    "skipping block {id}: could not deserialize: {e}"
+                                );
+                                Ok(None)
+                            }
+                        }
+                    }
                     Ok(_) => unreachable!(),
                     Err(e) => match e {
                         RpcRequestError::Method(GetBlockError::MissingBlock(_)) => Ok(None),
